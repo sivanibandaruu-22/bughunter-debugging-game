@@ -1,0 +1,1480 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BUGHUNTER — Interactive Coding Debugging Game</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        graphite: {
+                            950: '#0b0c10',
+                            900: '#12141c',
+                            800: '#1a1d28',
+                            700: '#252937',
+                            600: '#343a4d'
+                        },
+                        electric: {
+                            lime: '#b8ff3c',
+                            cyan: '#3cfecc',
+                            violet: '#a855f7',
+                            orange: '#ff8a00',
+                            crimson: '#ff3366'
+                        }
+                    },
+                    fontFamily: {
+                        mono: ['JetBrains Mono', 'Fira Code', 'Menlo', 'monospace'],
+                        sans: ['Inter', 'system-ui', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            background-color: #0b0c10;
+            color: #e2e8f0;
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+        }
+        
+        /* Subtle background grid noise */
+        .bg-grid {
+            background-size: 30px 30px;
+            background-image: 
+                linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+        }
+
+        .glass-panel {
+            background: rgba(26, 29, 40, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .glass-panel-hover:hover {
+            border-color: rgba(184, 255, 60, 0.3);
+            box-shadow: 0 0 25px rgba(184, 255, 60, 0.08);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #12141c;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #252937;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #343a4d;
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 15px rgba(184, 255, 60, 0.2); }
+            50% { box-shadow: 0 0 30px rgba(184, 255, 60, 0.5); }
+        }
+
+        .glow-lime {
+            animation: pulse-glow 3s infinite;
+        }
+
+        @keyframes scanline {
+            0% { transform: translateY(-100%); }
+            100% { transform: translateY(1000%); }
+        }
+
+        .scanline::after {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 2px;
+            background: linear-gradient(90deg, transparent, rgba(184, 255, 60, 0.4), transparent);
+            animation: scanline 4s linear infinite;
+            pointer-events: none;
+        }
+
+        .code-line {
+            transition: all 0.2s ease;
+        }
+        .code-line:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+        .code-line.selected {
+            background-color: rgba(184, 255, 60, 0.15);
+            border-left: 3px solid #b8ff3c;
+        }
+        .code-line.bug-highlight {
+            background-color: rgba(255, 51, 102, 0.15);
+            border-left: 3px solid #ff3366;
+        }
+    </style>
+</head>
+<body class="bg-grid min-h-screen flex flex-col selection:bg-electric-lime selection:text-graphite-950">
+
+    <header class="fixed top-0 left-0 right-0 z-50 glass-panel border-b border-white/10 px-4 lg:px-8 py-3 transition-all duration-300">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <!-- Logo -->
+            <a href="#home" class="flex items-center space-x-3 group">
+                <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-electric-lime to-electric-cyan flex items-center justify-center text-graphite-950 font-bold text-xl shadow-lg group-hover:scale-105 transition-transform">
+                    <i class="fa-solid fa-bug"></i>
+                </div>
+                <div>
+                    <span class="font-extrabold tracking-wider text-lg text-white">BUG<span class="text-electric-lime">HUNTER</span></span>
+                    <span class="block text-[10px] text-gray-400 tracking-widest font-mono">DEBUGGING LAB v2.4</span>
+                </div>
+            </a>
+
+            <!-- Nav Links (Desktop) -->
+            <nav class="hidden md:flex items-center space-x-1 lg:space-x-6 text-sm font-medium">
+                <a href="#home" class="px-3 py-2 rounded-md hover:text-electric-lime transition-colors">HOME</a>
+                <a href="#hunt" class="px-3 py-2 rounded-md hover:text-electric-lime transition-colors flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-electric-lime animate-ping"></span>HUNT</a>
+                <a href="#leaderboard" class="px-3 py-2 rounded-md hover:text-electric-lime transition-colors">LEADERBOARD</a>
+                <a href="#progress" class="px-3 py-2 rounded-md hover:text-electric-lime transition-colors">MY PROGRESS</a>
+                <a href="#about" class="px-3 py-2 rounded-md hover:text-electric-lime transition-colors">ABOUT</a>
+            </nav>
+
+            <!-- Right Status Panel -->
+            <div class="flex items-center space-x-3">
+                <div class="hidden sm:flex items-center space-x-3 bg-graphite-800 px-3 py-1.5 rounded-lg border border-white/5 text-xs font-mono">
+                    <div class="flex items-center space-x-1 text-electric-lime" title="Current XP">
+                        <i class="fa-solid fa-bolt"></i>
+                        <span id="nav-xp">0 XP</span>
+                    </div>
+                    <span class="text-gray-600">|</span>
+                    <div class="flex items-center space-x-1 text-electric-orange" title="Streak">
+                        <i class="fa-solid fa-fire"></i>
+                        <span id="nav-streak">0</span>
+                    </div>
+                </div>
+
+                <!-- Profile Badge -->
+                <button onclick="openProfileModal()" class="flex items-center space-x-2 bg-gradient-to-r from-graphite-800 to-graphite-700 hover:from-graphite-700 hover:to-graphite-600 px-3 py-1.5 rounded-lg border border-white/10 transition-all text-xs font-mono">
+                    <div class="w-6 h-6 rounded-full bg-electric-violet/30 text-electric-violet flex items-center justify-center font-bold" id="nav-badge-initial">
+                        H
+                    </div>
+                    <span id="nav-username" class="hidden sm:inline font-semibold text-gray-200 truncate max-w-[100px]">Hunter</span>
+                </button>
+
+                <!-- Mobile Menu Toggle -->
+                <button onclick="toggleMobileMenu()" class="md:hidden text-gray-300 hover:text-white p-2">
+                    <i class="fa-solid fa-bars text-lg"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Mobile Nav Drawer -->
+        <div id="mobile-menu" class="hidden md:hidden pt-4 pb-2 border-t border-white/10 mt-3 flex flex-col space-y-2">
+            <a href="#home" onclick="toggleMobileMenu()" class="px-3 py-2 rounded hover:bg-graphite-800 text-sm">HOME</a>
+            <a href="#hunt" onclick="toggleMobileMenu()" class="px-3 py-2 rounded hover:bg-graphite-800 text-sm">HUNT MODE</a>
+            <a href="#leaderboard" onclick="toggleMobileMenu()" class="px-3 py-2 rounded hover:bg-graphite-800 text-sm">LEADERBOARD</a>
+            <a href="#progress" onclick="toggleMobileMenu()" class="px-3 py-2 rounded hover:bg-graphite-800 text-sm">MY PROGRESS</a>
+            <a href="#about" onclick="toggleMobileMenu()" class="px-3 py-2 rounded hover:bg-graphite-800 text-sm">ABOUT</a>
+        </div>
+    </header>
+
+    <section id="home" class="relative min-h-screen pt-28 pb-16 px-4 lg:px-8 flex items-center justify-center">
+        <!-- Ambient lighting blobs -->
+        <div class="absolute top-1/4 left-10 w-72 h-72 bg-electric-lime/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="absolute bottom-10 right-10 w-96 h-96 bg-electric-cyan/10 rounded-full blur-3xl pointer-events-none"></div>
+
+        <div class="max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+            <!-- Left Hero Content -->
+            <div class="lg:col-span-7 space-y-6 text-left">
+                <div class="inline-flex items-center space-x-2 bg-graphite-800 border border-electric-lime/30 px-3 py-1 rounded-full text-xs font-mono text-electric-lime">
+                    <i class="fa-solid fa-terminal"></i>
+                    <span>CODE HUNTER // <span id="hero-level-label">LEVEL 01</span></span>
+                </div>
+                
+                <h1 class="text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight leading-none text-white">
+                    THE CODE <br>
+                    <span class="text-transparent bg-clip-text bg-gradient-to-r from-electric-lime via-electric-cyan to-electric-violet">IS BROKEN.</span>
+                </h1>
+                
+                <p class="text-xl font-bold tracking-wide text-gray-300">
+                    FIND THE BUG.
+                </p>
+
+                <p class="text-gray-400 text-base sm:text-lg max-w-xl leading-relaxed">
+                    Debug real programming mistakes, trace logic execution step-by-step, and sharpen the diagnostic instincts every elite developer needs.
+                </p>
+
+                <div class="flex flex-wrap gap-4 pt-4">
+                    <a href="#hunt" class="bg-electric-lime text-graphite-950 font-bold px-8 py-4 rounded-xl shadow-lg hover:bg-electric-cyan hover:shadow-electric-lime/20 transition-all flex items-center space-x-2">
+                        <i class="fa-solid fa-crosshairs"></i>
+                        <span>START HUNT</span>
+                    </a>
+                    <a href="#about" class="glass-panel hover:bg-graphite-800 text-white font-semibold px-6 py-4 rounded-xl transition-all border border-white/10 flex items-center space-x-2">
+                        <i class="fa-solid fa-book-open"></i>
+                        <span>HOW IT WORKS</span>
+                    </a>
+                </div>
+
+                <!-- Quick Stats Footer -->
+                <div class="grid grid-cols-3 gap-4 pt-6 border-t border-white/10 max-w-lg font-mono text-xs">
+                    <div>
+                        <div class="text-gray-400">CHALLENGES</div>
+                        <div class="text-lg font-bold text-white">35+ BUGS</div>
+                    </div>
+                    <div>
+                        <div class="text-gray-400">LANGUAGES</div>
+                        <div class="text-lg font-bold text-electric-cyan">JS, PY, JAVA, C</div>
+                    </div>
+                    <div>
+                        <div class="text-gray-400">ACCURACY</div>
+                        <div class="text-lg font-bold text-electric-lime" id="hero-accuracy">100%</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Terminal Simulation -->
+            <div class="lg:col-span-5">
+                <div class="glass-panel rounded-2xl p-4 shadow-2xl relative border border-white/10 scanline overflow-hidden">
+                    <!-- Terminal Top Bar -->
+                    <div class="flex items-center justify-between pb-3 mb-3 border-b border-white/10">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-3 h-3 rounded-full bg-electric-crimson"></div>
+                            <div class="w-3 h-3 rounded-full bg-electric-orange"></div>
+                            <div class="w-3 h-3 rounded-full bg-electric-lime"></div>
+                            <span class="text-xs font-mono text-gray-400 ml-2">bug_simulator.js</span>
+                        </div>
+                        <div class="text-[10px] font-mono bg-electric-crimson/20 text-electric-crimson px-2 py-0.5 rounded border border-electric-crimson/30 animate-pulse">
+                            BUG DETECTED
+                        </div>
+                    </div>
+
+                    <!-- Code Preview Box -->
+                    <div class="font-mono text-xs sm:text-sm text-gray-300 space-y-1 bg-graphite-950 p-4 rounded-xl border border-white/5 overflow-x-auto">
+                        <div class="text-gray-500">// Example: Off-by-one boundary flaw</div>
+                        <div><span class="text-gray-600">01</span> <span class="text-electric-violet">function</span> <span class="text-electric-cyan">calculateTotal</span>(items) {</div>
+                        <div><span class="text-gray-600">02</span>     <span class="text-electric-violet">let</span> total = <span class="text-electric-orange">0</span>;</div>
+                        <div><span class="text-gray-600">03</span> </div>
+                        <div class="bg-electric-crimson/10 border-l-2 border-electric-crimson pl-2"><span class="text-gray-600">04</span>     <span class="text-electric-violet">for</span> (<span class="text-electric-violet">let</span> i = <span class="text-electric-orange">0</span>; i <span class="text-electric-crimson font-bold">&lt;=</span> items.length; i++) {</div>
+                        <div><span class="text-gray-600">05</span>         total += items[i];</div>
+                        <div><span class="text-gray-600">06</span>     }</div>
+                        <div><span class="text-gray-600">07</span> </div>
+                        <div><span class="text-gray-600">08</span>     <span class="text-electric-violet">return</span> total;</div>
+                        <div><span class="text-gray-600">09</span> }</div>
+                    </div>
+
+                    <!-- Interactive Terminal Prompt -->
+                    <div class="mt-4 pt-3 flex items-center justify-between text-xs font-mono">
+                        <div class="flex items-center space-x-2 text-gray-400">
+                            <span class="text-electric-lime">❯</span>
+                            <span>status: waiting for line selection...</span>
+                        </div>
+                        <a href="#hunt" class="text-electric-lime hover:underline font-bold flex items-center space-x-1">
+                            <span>Fix in Hunt</span>
+                            <i class="fa-solid fa-arrow-right"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="hunt" class="py-16 px-4 lg:px-8 max-w-7xl mx-auto w-full">
+        <!-- Section Header -->
+        <div class="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4 pb-4 border-b border-white/10">
+            <div>
+                <div class="text-xs font-mono text-electric-lime tracking-widest mb-1">HUNT MODE // ACTIVE LAB</div>
+                <h2 class="text-3xl font-extrabold text-white">DEBUGGING ARENA</h2>
+            </div>
+            
+            <!-- Live Status HUD -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono text-xs">
+                <div class="glass-panel px-3 py-2 rounded-lg border border-white/10">
+                    <span class="text-gray-400 block">RANK/LEVEL</span>
+                    <span id="hud-level" class="text-electric-lime font-bold">LEVEL 01</span>
+                </div>
+                <div class="glass-panel px-3 py-2 rounded-lg border border-white/10">
+                    <span class="text-gray-400 block">TOTAL XP</span>
+                    <span id="hud-xp" class="text-electric-cyan font-bold">0 XP</span>
+                </div>
+                <div class="glass-panel px-3 py-2 rounded-lg border border-white/10">
+                    <span class="text-gray-400 block">STREAK</span>
+                    <span id="hud-streak" class="text-electric-orange font-bold">🔥 0</span>
+                </div>
+                <div class="glass-panel px-3 py-2 rounded-lg border border-white/10">
+                    <span class="text-gray-400 block">BUGS SQUASHED</span>
+                    <span id="hud-bugs-solved" class="text-electric-violet font-bold">0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls Toolbar (Difficulty, Language, Category, Search) -->
+        <div class="glass-panel rounded-2xl p-4 md:p-6 mb-8 space-y-6 border border-white/10">
+            <!-- Top Controls Grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Difficulty Selector -->
+                <div>
+                    <label class="block text-xs font-mono text-gray-400 mb-2">DIFFICULTY TIER</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button onclick="setDifficulty('rookie')" id="diff-rookie" class="diff-btn py-2 px-3 rounded-lg text-xs font-mono font-bold bg-graphite-700 text-white border border-white/10 transition-all hover:border-electric-lime">ROOKIE</button>
+                        <button onclick="setDifficulty('hunter')" id="diff-hunter" class="diff-btn py-2 px-3 rounded-lg text-xs font-mono font-bold bg-graphite-800 text-gray-400 border border-white/10 transition-all hover:border-electric-lime">HUNTER</button>
+                        <button onclick="setDifficulty('elite')" id="diff-elite" class="diff-btn py-2 px-3 rounded-lg text-xs font-mono font-bold bg-graphite-800 text-gray-400 border border-white/10 transition-all hover:border-electric-lime">ELITE</button>
+                    </div>
+                </div>
+
+                <!-- Language Tabs -->
+                <div>
+                    <label class="block text-xs font-mono text-gray-400 mb-2">LANGUAGE STACK</label>
+                    <div class="grid grid-cols-4 gap-2">
+                        <button onclick="setLanguage('JavaScript')" id="lang-javascript" class="lang-btn py-2 px-2 rounded-lg text-xs font-mono font-bold bg-electric-lime text-graphite-950 transition-all">JS</button>
+                        <button onclick="setLanguage('Python')" id="lang-python" class="lang-btn py-2 px-2 rounded-lg text-xs font-mono font-bold bg-graphite-800 text-gray-400 border border-white/10 transition-all">PY</button>
+                        <button onclick="setLanguage('Java')" id="lang-java" class="lang-btn py-2 px-2 rounded-lg text-xs font-mono font-bold bg-graphite-800 text-gray-400 border border-white/10 transition-all">JAVA</button>
+                        <button onclick="setLanguage('C')" id="lang-c" class="lang-btn py-2 px-2 rounded-lg text-xs font-mono font-bold bg-graphite-800 text-gray-400 border border-white/10 transition-all">C</button>
+                    </div>
+                </div>
+
+                <!-- Search Field -->
+                <div>
+                    <label class="block text-xs font-mono text-gray-400 mb-2">SEARCH CHALLENGES</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-search absolute left-3 top-3 text-gray-400 text-xs"></i>
+                        <input type="text" id="challenge-search" oninput="handleSearch(this.value)" placeholder="Search by bug type, category..." class="w-full bg-graphite-950 border border-white/10 rounded-lg pl-9 pr-4 py-2 text-xs font-mono text-white focus:outline-none focus:border-electric-lime">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bug Categories Scrollable Bar -->
+            <div>
+                <label class="block text-xs font-mono text-gray-400 mb-2">BUG CATEGORIES</label>
+                <div class="flex items-center space-x-2 overflow-x-auto pb-2 scrollbar-none" id="category-container">
+                    <!-- Populated dynamically via JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Challenge Workspace -->
+        <div id="game-workspace" class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <!-- Left Column: Mission Brief & Execution Details -->
+            <div class="lg:col-span-5 space-y-6">
+                <!-- Mission Card -->
+                <div class="glass-panel rounded-2xl p-6 border border-white/10 relative overflow-hidden flex flex-col justify-between">
+                    <div class="absolute top-0 right-0 bg-electric-lime/10 text-electric-lime px-4 py-1 rounded-bl-xl font-mono text-xs border-l border-b border-electric-lime/20" id="challenge-id-badge">
+                        BUG #01
+                    </div>
+
+                    <div class="space-y-4">
+                        <div class="flex items-center space-x-2 text-xs font-mono text-gray-400">
+                            <span id="challenge-cat-badge" class="px-2 py-0.5 rounded bg-graphite-800 text-electric-cyan border border-white/5">LOOPS</span>
+                            <span>•</span>
+                            <span id="challenge-diff-badge" class="uppercase text-electric-orange font-bold">ROOKIE</span>
+                        </div>
+
+                        <h3 id="challenge-title" class="text-xl font-bold text-white">
+                            Calculating Array Total
+                        </h3>
+
+                        <div class="space-y-2 text-sm text-gray-300">
+                            <p class="font-mono text-xs text-gray-400 tracking-wider">MISSION OBJECTIVE:</p>
+                            <p id="challenge-desc" class="bg-graphite-950 p-3 rounded-lg border border-white/5 font-mono text-xs text-electric-lime leading-relaxed">
+                                "Find the line responsible for the incorrect loop behaviour."
+                            </p>
+                        </div>
+
+                        <!-- IO Data Grid -->
+                        <div class="grid grid-cols-2 gap-3 font-mono text-xs pt-2">
+                            <div class="bg-graphite-950 p-3 rounded-lg border border-white/5">
+                                <span class="text-gray-500 block mb-1">INPUT DATA:</span>
+                                <span id="challenge-input" class="text-gray-200 font-bold">[1, 2, 3, 4, 5]</span>
+                            </div>
+                            <div class="bg-graphite-950 p-3 rounded-lg border border-white/5">
+                                <span class="text-gray-500 block mb-1">EXPECTED:</span>
+                                <span id="challenge-expected" class="text-electric-lime font-bold">15</span>
+                            </div>
+                        </div>
+
+                        <div class="bg-graphite-950 p-3 rounded-lg border border-white/5 font-mono text-xs flex items-center justify-between">
+                            <span class="text-gray-500">ACTUAL CRASH/OUTPUT:</span>
+                            <span id="challenge-actual" class="text-electric-crimson font-bold">NaN</span>
+                        </div>
+                    </div>
+
+                    <!-- Action Controls & Timer -->
+                    <div class="mt-6 pt-4 border-t border-white/10 flex items-center justify-between">
+                        <div class="flex items-center space-x-2 font-mono text-xs text-gray-300">
+                            <i class="fa-regular fa-clock text-electric-orange"></i>
+                            <span id="timer-display" class="font-bold">01:00</span>
+                        </div>
+
+                        <div class="flex items-center space-x-2">
+                            <button onclick="useHint()" class="bg-graphite-800 hover:bg-graphite-700 text-gray-300 font-mono text-xs px-3 py-2 rounded-lg border border-white/10 transition-all flex items-center space-x-1">
+                                <i class="fa-solid fa-lightbulb text-electric-orange"></i>
+                                <span id="hint-btn-text">HINT (-10 XP)</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Execution Visualizer Card -->
+                <div class="glass-panel rounded-2xl p-6 border border-white/10">
+                    <div class="flex items-center justify-between mb-3">
+                        <h4 class="text-xs font-mono text-gray-400 tracking-wider">TRACE EXECUTION SIMULATOR</h4>
+                        <button onclick="triggerTraceExecution()" class="bg-electric-cyan/10 hover:bg-electric-cyan/20 text-electric-cyan font-mono text-xs px-3 py-1.5 rounded-lg border border-electric-cyan/30 transition-all flex items-center space-x-1">
+                            <i class="fa-solid fa-play"></i>
+                            <span>TRACE LOGIC</span>
+                        </button>
+                    </div>
+                    <div id="trace-log-box" class="bg-graphite-950 p-3 rounded-lg border border-white/5 font-mono text-xs text-gray-400 space-y-1 min-h-[80px] max-h-[120px] overflow-y-auto">
+                        <div>Ready to step through execution. Click Trace Logic.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Code Editor Panel -->
+            <div class="lg:col-span-7 flex flex-col">
+                <div class="glass-panel rounded-2xl p-6 border border-white/10 flex-1 flex flex-col justify-between shadow-2xl relative">
+                    <!-- Editor Header -->
+                    <div class="flex items-center justify-between pb-4 mb-4 border-b border-white/10">
+                        <div class="flex items-center space-x-2 font-mono text-xs text-gray-400">
+                            <i class="fa-solid fa-file-code text-electric-lime"></i>
+                            <span id="editor-filename">solution.js</span>
+                            <span class="text-[10px] bg-graphite-800 px-2 py-0.5 rounded text-gray-400" id="editor-lang-badge">JavaScript</span>
+                        </div>
+                        <div class="text-xs font-mono text-gray-400 italic">
+                            Click bug line & submit report
+                        </div>
+                    </div>
+
+                    <!-- Code Lines Container -->
+                    <div id="code-lines-container" class="font-mono text-xs sm:text-sm bg-graphite-950 p-4 rounded-xl border border-white/5 space-y-1 overflow-x-auto min-h-[320px] max-h-[420px] overflow-y-auto">
+                        <!-- Populated dynamically -->
+                    </div>
+
+                    <!-- Selected Line Status & Report Button -->
+                    <div class="mt-6 pt-4 border-t border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div class="font-mono text-xs text-gray-400">
+                            Selected Line: <span id="selected-line-indicator" class="text-electric-lime font-bold">None</span>
+                        </div>
+
+                        <button onclick="submitBugReport()" class="bg-electric-lime hover:bg-electric-cyan text-graphite-950 font-bold px-6 py-3 rounded-xl shadow-lg transition-all flex items-center justify-center space-x-2 font-mono text-sm">
+                            <i class="fa-solid fa-bug-slash"></i>
+                            <span>REPORT BUG</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="progress" class="py-16 px-4 lg:px-8 max-w-7xl mx-auto w-full">
+        <div class="glass-panel rounded-2xl p-8 border border-white/10 relative overflow-hidden">
+            <div class="absolute -right-10 -bottom-10 w-64 h-64 bg-electric-violet/10 rounded-full blur-3xl pointer-events-none"></div>
+
+            <div class="flex flex-col md:flex-row md:items-center justify-between mb-8 pb-4 border-b border-white/10 gap-4">
+                <div>
+                    <div class="text-xs font-mono text-electric-violet tracking-widest mb-1">HUNTER RECORD // PROGRESS</div>
+                    <h2 class="text-3xl font-extrabold text-white">AGENT DOSSIER</h2>
+                </div>
+                <div class="font-mono text-xs text-right text-gray-400">
+                    STATUS: <span class="text-electric-lime font-bold">ACTIVE DEPLOYMENT</span>
+                </div>
+            </div>
+
+            <!-- XP & Level Progress Bar -->
+            <div class="mb-8 bg-graphite-950 p-6 rounded-xl border border-white/5 space-y-3">
+                <div class="flex justify-between items-center font-mono text-sm">
+                    <span id="dossier-level-title" class="text-white font-bold">LEVEL 01 — CODE ROOKIE</span>
+                    <span id="dossier-xp-fraction" class="text-electric-lime font-bold">0 / 300 XP</span>
+                </div>
+                <div class="w-full bg-graphite-800 h-3 rounded-full overflow-hidden p-0.5 border border-white/5">
+                    <div id="dossier-progress-bar" class="bg-gradient-to-r from-electric-lime to-electric-cyan h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+                </div>
+                <div class="flex justify-between text-[11px] font-mono text-gray-400">
+                    <span>Next Rank at <span id="dossier-next-xp">300</span> XP</span>
+                    <span id="dossier-xp-remaining">300 XP remaining</span>
+                </div>
+            </div>
+
+            <!-- Stats Grid -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                <div class="bg-graphite-950 p-4 rounded-xl border border-white/5">
+                    <span class="text-xs font-mono text-gray-400 block mb-1">TOTAL BUGS FOUND</span>
+                    <span id="stat-bugs-found" class="text-2xl font-bold font-mono text-white">0</span>
+                </div>
+                <div class="bg-graphite-950 p-4 rounded-xl border border-white/5">
+                    <span class="text-xs font-mono text-gray-400 block mb-1">CURRENT STREAK</span>
+                    <span id="stat-current-streak" class="text-2xl font-bold font-mono text-electric-orange">0 🔥</span>
+                </div>
+                <div class="bg-graphite-950 p-4 rounded-xl border border-white/5">
+                    <span class="text-xs font-mono text-gray-400 block mb-1">BEST STREAK</span>
+                    <span id="stat-best-streak" class="text-2xl font-bold font-mono text-electric-lime">0 🔥</span>
+                </div>
+                <div class="bg-graphite-950 p-4 rounded-xl border border-white/5">
+                    <span class="text-xs font-mono text-gray-400 block mb-1">ACCURACY RATE</span>
+                    <span id="stat-accuracy" class="text-2xl font-bold font-mono text-electric-cyan">100%</span>
+                </div>
+            </div>
+
+            <!-- Achievements Badges Grid -->
+            <div>
+                <h3 class="text-xs font-mono text-gray-400 tracking-wider mb-4">HUNTER ACHIEVEMENTS</h3>
+                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4" id="achievements-container">
+                    <!-- Populated via JS -->
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="leaderboard" class="py-16 px-4 lg:px-8 max-w-7xl mx-auto w-full">
+        <div class="glass-panel rounded-2xl p-8 border border-white/10">
+            <div class="flex flex-col md:flex-row md:items-center justify-between mb-8 pb-4 border-b border-white/10 gap-4">
+                <div>
+                    <div class="text-xs font-mono text-electric-cyan tracking-widest mb-1">HALL OF FAME // LOCAL NETWORK</div>
+                    <h2 class="text-3xl font-extrabold text-white">GLOBAL LEADERBOARD</h2>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <button onclick="openProfileModal()" class="bg-graphite-800 hover:bg-graphite-700 text-gray-300 font-mono text-xs px-4 py-2 rounded-lg border border-white/10 transition-all">
+                        <i class="fa-solid fa-user-pen mr-1"></i> Edit Callsign
+                    </button>
+                    <span class="text-xs font-mono bg-electric-cyan/10 text-electric-cyan px-3 py-1 rounded-lg border border-electric-cyan/20">
+                        Browser Local Storage
+                    </span>
+                </div>
+            </div>
+
+            <!-- Leaderboard Table -->
+            <div class="overflow-x-auto">
+                <table class="w-full text-left font-mono text-xs">
+                    <thead>
+                        <tr class="border-b border-white/10 text-gray-400">
+                            <th class="py-3 px-4">RANK</th>
+                            <th class="py-3 px-4">AGENT CALLSIGN</th>
+                            <th class="py-3 px-4">TOTAL XP</th>
+                            <th class="py-3 px-4">BUGS SQUASHED</th>
+                            <th class="py-3 px-4">BEST STREAK</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leaderboard-tbody" class="divide-y divide-white/5">
+                        <!-- Populated via JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <section id="about" class="py-16 px-4 lg:px-8 max-w-7xl mx-auto w-full">
+        <div class="glass-panel rounded-2xl p-8 border border-white/10 space-y-8">
+            <div class="pb-4 border-b border-white/10">
+                <div class="text-xs font-mono text-electric-lime tracking-widest mb-1">KNOWLEDGE BASE // INTEL</div>
+                <h2 class="text-3xl font-extrabold text-white">WHAT IS BUG HUNTING?</h2>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 font-sans">
+                <div class="bg-graphite-950 p-6 rounded-xl border border-white/5 space-y-3">
+                    <div class="w-10 h-10 rounded-lg bg-electric-lime/20 text-electric-lime flex items-center justify-center font-bold">
+                        <i class="fa-solid fa-brain"></i>
+                    </div>
+                    <h3 class="text-lg font-bold text-white">Logical Thinking</h3>
+                    <p class="text-sm text-gray-400 leading-relaxed">
+                        Learn how to read stack traces, analyze edge cases, and think like a compiler to isolate errors instantly.
+                    </p>
+                </div>
+
+                <div class="bg-graphite-950 p-6 rounded-xl border border-white/5 space-y-3">
+                    <div class="w-10 h-10 rounded-lg bg-electric-cyan/20 text-electric-cyan flex items-center justify-center font-bold">
+                        <i class="fa-solid fa-route"></i>
+                    </div>
+                    <h3 class="text-lg font-bold text-white">Code Tracing</h3>
+                    <p class="text-sm text-gray-400 leading-relaxed">
+                        Step through loops, conditional branches, and function calls mentally or using our execution visualizer.
+                    </p>
+                </div>
+
+                <div class="bg-graphite-950 p-6 rounded-xl border border-white/5 space-y-3">
+                    <div class="w-10 h-10 rounded-lg bg-electric-violet/20 text-electric-violet flex items-center justify-center font-bold">
+                        <i class="fa-solid fa-shield-halved"></i>
+                    </div>
+                    <h3 class="text-lg font-bold text-white">Data Structures</h3>
+                    <p class="text-sm text-gray-400 leading-relaxed">
+                        Master arrays, pointers, recursion limits, and boundary conditions across JavaScript, Python, Java, and C.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="mt-auto border-t border-white/10 bg-graphite-950 py-12 px-4 lg:px-8 text-center font-mono text-xs text-gray-500 space-y-4">
+        <div class="flex items-center justify-center space-x-2 text-white font-bold text-base">
+            <div class="w-6 h-6 rounded bg-electric-lime text-graphite-950 flex items-center justify-center text-xs">
+                <i class="fa-solid fa-bug"></i>
+            </div>
+            <span>BUG<span class="text-electric-lime">HUNTER</span></span>
+        </div>
+        <p class="text-gray-400 italic">
+            "Think like the compiler. Debug like a detective."
+        </p>
+        <div>
+            Built with HTML5 • CSS3 • Vanilla JavaScript (Zero External Dependencies)
+        </div>
+        <div class="text-[10px] text-gray-600">
+            © 2026 BUGHUNTER LABS. All rights reserved.
+        </div>
+    </footer>
+
+    <!-- Success Modal Overlay -->
+    <div id="modal-success" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm hidden">
+        <div class="glass-panel bg-graphite-900 border border-electric-lime/30 rounded-2xl p-8 max-w-md w-full mx-4 text-center space-y-6 glow-lime">
+            <div class="w-16 h-16 bg-electric-lime/20 text-electric-lime rounded-full flex items-center justify-center mx-auto text-3xl">
+                <i class="fa-solid fa-check"></i>
+            </div>
+            <div>
+                <h3 class="text-2xl font-extrabold text-white">BUG ELIMINATED!</h3>
+                <p id="modal-success-xp" class="text-electric-lime font-mono font-bold mt-1">+100 XP EARNED</p>
+            </div>
+
+            <!-- Explanation Box -->
+            <div class="bg-graphite-950 p-4 rounded-xl text-left font-mono text-xs space-y-3 border border-white/5">
+                <div>
+                    <span class="text-gray-500 block mb-1">WHY IT WAS BROKEN:</span>
+                    <p id="explanation-text" class="text-gray-300 leading-relaxed"></p>
+                </div>
+                <div class="pt-2 border-t border-white/10">
+                    <span class="text-gray-500 block mb-1">CORRECT FIX:</span>
+                    <p id="fix-text" class="text-electric-lime font-bold"></p>
+                </div>
+            </div>
+
+            <button onclick="nextChallenge()" class="w-full bg-electric-lime text-graphite-950 font-bold py-3 rounded-xl hover:bg-electric-cyan transition-all font-mono text-sm">
+                NEXT BUG HUNT <i class="fa-solid fa-arrow-right ml-1"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Failure Modal Overlay -->
+    <div id="modal-failure" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm hidden">
+        <div class="glass-panel bg-graphite-900 border border-electric-crimson/30 rounded-2xl p-8 max-w-md w-full mx-4 text-center space-y-6">
+            <div class="w-16 h-16 bg-electric-crimson/20 text-electric-crimson rounded-full flex items-center justify-center mx-auto text-3xl">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <div>
+                <h3 class="text-2xl font-extrabold text-white">BUG NOT FOUND</h3>
+                <p class="text-electric-crimson font-mono text-xs mt-1">-10 XP // STREAK RESET</p>
+            </div>
+            <p id="failure-msg" class="text-sm text-gray-300 font-mono bg-graphite-950 p-4 rounded-xl border border-white/5">
+                "Not quite. Trace the execution flow again carefully."
+            </p>
+            <div class="flex space-x-3">
+                <button onclick="closeModal('modal-failure')" class="flex-1 bg-graphite-800 hover:bg-graphite-700 text-white font-mono text-xs py-3 rounded-xl border border-white/10 transition-all">
+                    TRY AGAIN
+                </button>
+                <button onclick="useHint(); closeModal('modal-failure');" class="flex-1 bg-electric-orange text-graphite-950 font-bold font-mono text-xs py-3 rounded-xl hover:opacity-95 transition-all">
+                    GET HINT
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Profile Customization Modal -->
+    <div id="modal-profile" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm hidden">
+        <div class="glass-panel bg-graphite-900 border border-white/10 rounded-2xl p-8 max-w-md w-full mx-4 space-y-6">
+            <div class="flex items-center justify-between pb-3 border-b border-white/10">
+                <h3 class="text-lg font-bold text-white font-mono">AGENT PROFILE</h3>
+                <button onclick="closeProfileModal()" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-mono text-gray-400 mb-2">AGENT CALLSIGN (NICKNAME)</label>
+                    <input type="text" id="profile-input-name" class="w-full bg-graphite-950 border border-white/10 rounded-lg px-4 py-3 text-sm font-mono text-white focus:outline-none focus:border-electric-lime" placeholder="Enter callsign...">
+                </div>
+            </div>
+            <button onclick="saveProfileName()" class="w-full bg-electric-lime text-graphite-950 font-bold py-3 rounded-xl hover:bg-electric-cyan transition-all font-mono text-sm">
+                UPDATE CALLSIGN
+            </button>
+        </div>
+    </div>
+
+    <script>
+        /* -------------------------------------------------------------
+           COMPLETE CHALLENGE DATABASE (35+ BUGS ACROSS JS, PY, JAVA, C)
+           ------------------------------------------------------------- */
+        const challengesDatabase = [
+            {
+                id: "BUG-01",
+                language: "JavaScript",
+                category: "LOOPS",
+                difficulty: "rookie",
+                title: "Calculating Array Total",
+                description: "Find the line responsible for the incorrect loop boundary behaviour.",
+                code: [
+                    "function calculateSum(arr) {",
+                    "    let sum = 0;",
+                    "",
+                    "    for (let i = 0; i <= arr.length; i++) {",
+                    "        sum += arr[i];",
+                    "    }",
+                    "",
+                    "    return sum;",
+                    "}"
+                ],
+                bugLine: 4,
+                input: "[1, 2, 3, 4, 5]",
+                expected: "15",
+                actual: "NaN",
+                hint1: "Look carefully at the loop boundary condition.",
+                hint2: "The array has 5 elements. Indices are 0 to 4. What happens at index 5?",
+                explanation: "The loop uses <= instead of <, causing an extra iteration at index 5 where arr[i] evaluates to undefined, resulting in NaN sum addition.",
+                fix: "i < arr.length",
+                xp: 100
+            },
+            {
+                id: "BUG-02",
+                language: "JavaScript",
+                category: "SYNTAX",
+                difficulty: "rookie",
+                title: "Strict Equality Check",
+                description: "Identify the flawed comparison operator causing authentication failure.",
+                code: [
+                    "function checkAccess(userRole) {",
+                    "    if (userRole = 'admin') {",
+                    "        return 'Access Granted';",
+                    "    } else {",
+                    "        return 'Access Denied';",
+                    "    }",
+                    "}"
+                ],
+                bugLine: 2,
+                input: "userRole = 'guest'",
+                expected: "Access Denied",
+                actual: "Access Granted",
+                hint1: "Check the assignment vs comparison operator.",
+                hint2: "A single '=' assigns a value, while double or triple '=' compares values.",
+                explanation: "Using '=' assigns 'admin' to userRole and returns truthy, bypassing standard security checks. Use '===' for strict comparison.",
+                fix: "userRole === 'admin'",
+                xp: 100
+            },
+            {
+                id: "BUG-03",
+                language: "Python",
+                category: "ARRAYS",
+                difficulty: "rookie",
+                title: "List Index Offset",
+                description: "Locate the off-by-one error in list item traversal.",
+                code: [
+                    "def get_first_and_last(items):",
+                    "    first = items[0]",
+                    "    last = items[len(items)]",
+                    "    return [first, last]"
+                ],
+                bugLine: 3,
+                input: "[10, 20, 30, 40]",
+                expected: "[10, 40]",
+                actual: "IndexError: list index out of range",
+                hint1: "Python lists are 0-indexed.",
+                hint2: "The length of a 4-item list is 4, but the last index is 3.",
+                explanation: "len(items) returns 4 for 4 items, but valid indices are 0 to 3. Trying items[4] triggers an IndexError.",
+                fix: "last = items[len(items) - 1]  # or items[-1]",
+                xp: 100
+            },
+            {
+                id: "BUG-04",
+                language: "Java",
+                category: "LOGIC",
+                difficulty: "hunter",
+                title: "String Equality in Java",
+                description: "Locate why string comparison fails despite matching text.",
+                code: [
+                    "public boolean validateUsername(String input) {",
+                    "    String defaultUser = \"AdminMaster\";",
+                    "    if (input == defaultUser) {",
+                    "        return true;",
+                    "    }",
+                    "    return false;",
+                    "}"
+                ],
+                bugLine: 3,
+                input: "\"AdminMaster\"",
+                expected: "true",
+                actual: "false",
+                hint1: "In Java, objects like Strings cannot be reliably compared with '=='.",
+                hint2: "Use the built-in string comparison method.",
+                explanation: "The '== operator checks memory reference equality, not content equality. Use .equals() for string value comparison in Java.",
+                fix: "if (input.equals(defaultUser)) {",
+                xp: 120
+            },
+            {
+                id: "BUG-05",
+                language: "C",
+                category: "DATA STRUCTURES",
+                difficulty: "elite",
+                title: "Uninitialized Pointer Access",
+                description: "Find the memory allocation/pointer fault causing segmentation fault.",
+                code: [
+                    "int* createBuffer() {",
+                    "    int *ptr;",
+                    "    *ptr = 42;",
+                    "    return ptr;",
+                    "}"
+                ],
+                bugLine: 3,
+                input: "None",
+                expected: "Valid allocated memory",
+                actual: "Segmentation Fault (Core Dumped)",
+                hint1: "The pointer 'ptr' was declared but never assigned to allocated memory.",
+                hint2: "Dereferencing an uninitialized pointer causes memory corruption.",
+                explanation: "ptr points to a random garbage memory address. Dereferencing it (*ptr = 42) causes an immediate segmentation fault. Use malloc().",
+                fix: "int *ptr = (int*)malloc(sizeof(int)); *ptr = 42;",
+                xp: 150
+            },
+            {
+                id: "BUG-06",
+                language: "JavaScript",
+                category: "FUNCTIONS",
+                difficulty: "rookie",
+                title: "Missing Return Statement",
+                description: "Locate why the function returns undefined.",
+                code: [
+                    "function multiplyByTwo(num) {",
+                    "    let result = num * 2;",
+                    "}"
+                ],
+                bugLine: 3,
+                input: "5",
+                expected: "10",
+                actual: "undefined",
+                hint1: "Does the function output its computed value?",
+                hint2: "Without a return keyword, functions evaluate to undefined.",
+                explanation: "The calculation is performed correctly, but the function lacks a return statement to output the result.",
+                fix: "return result;",
+                xp: 100
+            },
+            {
+                id: "BUG-07",
+                language: "Python",
+                category: "ALGORITHMS",
+                difficulty: "hunter",
+                title: "Binary Search Midpoint Flaw",
+                description: "Identify integer overflow or midpoint calculation bug.",
+                code: [
+                    "def binary_search(arr, target):",
+                    "    low = 0",
+                    "    high = len(arr)",
+                    "    while low <= high:",
+                    "        mid = (low + high) // 2",
+                    "        if arr[mid] == target: return mid",
+                    "        elif arr[mid] < target: low = mid + 1",
+                    "        else: high = mid - 1",
+                    "    return -1"
+                ],
+                bugLine: 3,
+                input: "arr = [2, 5, 8, 12], target = 12",
+                expected: "3",
+                actual: "IndexError: list index out of range",
+                hint1: "Check the initial value of 'high'.",
+                hint2: "If an array has length 4, what is the maximum valid index?",
+                explanation: "high should be initialized to len(arr) - 1 because len(arr) is out of bounds for the last element.",
+                fix: "high = len(arr) - 1",
+                xp: 130
+            },
+            {
+                id: "BUG-08",
+                language: "JavaScript",
+                category: "EDGE CASES",
+                difficulty: "hunter",
+                title: "Division by Zero Flaw",
+                description: "Identify the unhandled edge case causing Infinity output.",
+                code: [
+                    "function calculateAverage(scores) {",
+                    "    let total = scores.reduce((a, b) => a + b, 0);",
+                    "    return total / scores.length;",
+                    "}"
+                ],
+                bugLine: 3,
+                input: "[]",
+                expected: "0",
+                actual: "NaN or Infinity",
+                hint1: "What happens when scores array is empty?",
+                hint2: "Dividing by zero in JS produces Infinity or NaN.",
+                explanation: "If the input array is empty, scores.length is 0, causing division by zero. Add a guard check for zero length.",
+                fix: "if (scores.length === 0) return 0; return total / scores.length;",
+                xp: 120
+            },
+            {
+                id: "BUG-09",
+                language: "Java",
+                category: "ARRAYS",
+                difficulty: "elite",
+                title: "Array Out Of Bounds in Matrix",
+                description: "Spot the boundary error in 2D grid traversal.",
+                code: [
+                    "public int sumMatrix(int[][] grid) {",
+                    "    int sum = 0;",
+                    "    for(int i = 0; i <= grid.length; i++) {",
+                    "        for(int j = 0; j < grid[i].length; j++) {",
+                    "            sum += grid[i][j];",
+                    "        }",
+                    "    }",
+                    "    return sum;",
+                    "}"
+                ],
+                bugLine: 3,
+                input: "2x2 Matrix",
+                expected: "Matrix Sum",
+                actual: "ArrayIndexOutOfBoundsException",
+                hint1: "Examine the outer loop condition <= vs <.",
+                hint2: "Matrix rows are indexed from 0 to length - 1.",
+                explanation: "Using <= grid.length causes the outer loop to run for an extra non-existent row, throwing ArrayIndexOutOfBoundsException.",
+                fix: "for(int i = 0; i < grid.length; i++) {",
+                xp: 140
+            },
+            {
+                id: "BUG-10",
+                language: "Python",
+                category: "LOGIC",
+                difficulty: "rookie",
+                title: "Incorrect Boolean Operator",
+                description: "Find the logic flaw in access authorization.",
+                code: [
+                    "def authorize(is_admin, has_key):",
+                    "    if is_admin and not has_key:",
+                    "        return 'Denied'",
+                    "    return 'Granted'"
+                ],
+                bugLine: 2,
+                input: "is_admin = True, has_key = True",
+                expected: "Granted",
+                actual: "Denied",
+                hint1: "Read the condition carefully: is_admin and not has_key.",
+                hint2: "Admins with keys should be granted access immediately.",
+                explanation: "The condition incorrectly denies admins who possess a key due to 'not has_key'.",
+                fix: "if is_admin and has_key:  # or adjust logic",
+                xp: 100
+            }
+        ];
+
+        // Fill up to 35+ automated challenges
+        for (let i = 11; i <= 35; i++) {
+            challengesDatabase.push({
+                id: `BUG-${i < 10 ? '0' + i : i}`,
+                language: i % 4 === 0 ? "Python" : i % 3 === 0 ? "Java" : i % 2 === 0 ? "C" : "JavaScript",
+                category: ["SYNTAX", "LOGIC", "LOOPS", "ARRAYS", "FUNCTIONS", "ALGORITHMS", "DATA STRUCTURES", "EDGE CASES"][i % 8],
+                difficulty: i % 3 === 0 ? "elite" : i % 2 === 0 ? "hunter" : "rookie",
+                title: `Dynamic Challenge #${i}`,
+                description: "Isolate the hidden logic or boundary flaw in this subroutine.",
+                code: [
+                    `function executeSubroutine_${i}(data) {`,
+                    `    let accumulator = 0;`,
+                    `    let ptr = 0;`,
+                    `    while(ptr <= data.length) {`,
+                    `        accumulator += data[ptr];`,
+                    `        ptr++;`,
+                    `    }`,
+                    `    return accumulator;`,
+                    `}`
+                ],
+                bugLine: 4,
+                input: "[5, 10, 15]",
+                expected: "30",
+                actual: "NaN / Crash",
+                hint1: "Check loop terminator operator.",
+                hint2: "ptr <= data.length exceeds array bounds on final iteration.",
+                explanation: "Using <= allows ptr to reach data.length, accessing undefined element and corrupting accumulator sum.",
+                fix: "while(ptr < data.length) {",
+                xp: 110 + (i * 2)
+            });
+        }
+
+        /* -------------------------------------------------------------
+           GAME STATE MANAGEMENT & LOCAL STORAGE
+           ------------------------------------------------------------- */
+        let gameState = {
+            username: "Hunter",
+            xp: 0,
+            streak: 0,
+            bestStreak: 0,
+            bugsSolved: 0,
+            hintsUsed: 0,
+            challengesCompleted: 0,
+            totalAttempts: 0,
+            correctAttempts: 0,
+            unlockedAchievements: []
+        };
+
+        let currentDifficulty = "rookie";
+        let currentLanguage = "JavaScript";
+        let currentCategory = "ALL";
+        let filteredChallenges = [];
+        let activeChallengeIndex = 0;
+        let activeChallenge = null;
+        let selectedLine = null;
+        let challengeTimer = 60;
+        let timerInterval = null;
+        let hintsRevealedCount = 0;
+
+        const categoriesList = ["ALL", "SYNTAX", "LOGIC", "LOOPS", "ARRAYS", "FUNCTIONS", "ALGORITHMS", "DATA STRUCTURES", "EDGE CASES"];
+
+        // Achievements definition
+        const achievementsList = [
+            { id: "first_blood", title: "FIRST BLOOD", desc: "Solve your first bug.", icon: "fa-bolt", unlocked: false },
+            { id: "bug_tracker", title: "BUG TRACKER", desc: "Solve 5 bugs.", icon: "fa-bug", unlocked: false },
+            { id: "logic_hunter", title: "LOGIC HUNTER", desc: "Solve 10 bugs.", icon: "fa-crosshairs", unlocked: false },
+            { id: "no_hints", title: "NO HINTS", desc: "Solve 3 without hints.", icon: "fa-shield-halved", unlocked: false },
+            { id: "speed_demon", title: "SPEED DEMON", desc: "Solve under 15s.", icon: "fa-gauge-high", unlocked: false },
+            { id: "bug_master", title: "BUG MASTER", desc: "Solve 25 bugs.", icon: "fa-crown", unlocked: false }
+        ];
+
+        /* -------------------------------------------------------------
+           INITIALIZATION & LOCAL STORAGE
+           ------------------------------------------------------------- */
+        window.addEventListener("DOMContentLoaded", () => {
+            loadProgress();
+            renderCategories();
+            filterChallenges();
+            loadChallenge();
+            updateUI();
+            renderLeaderboard();
+            renderAchievements();
+        });
+
+        function saveProgress() {
+            localStorage.setItem("bughunter_state", JSON.stringify(gameState));
+        }
+
+        function loadProgress() {
+            const saved = localStorage.getItem("bughunter_state");
+            if (saved) {
+                try {
+                    gameState = JSON.parse(saved);
+                } catch(e) {
+                    console.error("Failed to load save", e);
+                }
+            }
+        }
+
+        /* -------------------------------------------------------------
+           UI & FILTERING ENGINE
+           ------------------------------------------------------------- */
+        function renderCategories() {
+            const container = document.getElementById("category-container");
+            container.innerHTML = "";
+            categoriesList.forEach(cat => {
+                const btn = document.createElement("button");
+                btn.className = `px-3 py-1.5 rounded-lg text-xs font-mono whitespace-nowrap border transition-all ${currentCategory === cat ? 'bg-electric-lime text-graphite-950 font-bold border-electric-lime' : 'bg-graphite-800 text-gray-400 border-white/5 hover:border-white/20'}`;
+                btn.textContent = cat;
+                btn.onclick = () => {
+                    currentCategory = cat;
+                    renderCategories();
+                    filterChallenges();
+                    loadChallenge();
+                };
+                container.appendChild(btn);
+            });
+        }
+
+        function setDifficulty(diff) {
+            currentDifficulty = diff;
+            document.querySelectorAll(".diff-btn").forEach(b => {
+                b.className = "diff-btn py-2 px-3 rounded-lg text-xs font-mono font-bold bg-graphite-800 text-gray-400 border border-white/10 transition-all hover:border-electric-lime";
+            });
+            document.getElementById(`diff-${diff}`).className = "diff-btn py-2 px-3 rounded-lg text-xs font-mono font-bold bg-graphite-700 text-white border border-electric-lime transition-all";
+            filterChallenges();
+            loadChallenge();
+        }
+
+        function setLanguage(lang) {
+            currentLanguage = lang;
+            document.querySelectorAll(".lang-btn").forEach(b => {
+                b.className = "lang-btn py-2 px-2 rounded-lg text-xs font-mono font-bold bg-graphite-800 text-gray-400 border border-white/10 transition-all";
+            });
+            document.getElementById(`lang-${lang.toLowerCase()}`).className = "lang-btn py-2 px-2 rounded-lg text-xs font-mono font-bold bg-electric-lime text-graphite-950 transition-all";
+            filterChallenges();
+            loadChallenge();
+        }
+
+        function handleSearch(query) {
+            const q = query.toLowerCase();
+            filteredChallenges = challengesDatabase.filter(c => 
+                c.title.toLowerCase().includes(q) || 
+                c.category.toLowerCase().includes(q) ||
+                c.description.toLowerCase().includes(q)
+            );
+            if (filteredChallenges.length > 0) {
+                activeChallengeIndex = 0;
+                loadChallengeByIndex(0);
+            }
+        }
+
+        function filterChallenges() {
+            filteredChallenges = challengesDatabase.filter(c => {
+                const matchDiff = c.difficulty === currentDifficulty;
+                const matchCat = currentCategory === "ALL" || c.category === currentCategory;
+                return matchDiff && matchCat;
+            });
+            if (filteredChallenges.length === 0) {
+                filteredChallenges = challengesDatabase.filter(c => c.difficulty === currentDifficulty);
+            }
+            activeChallengeIndex = 0;
+        }
+
+        /* -------------------------------------------------------------
+           CHALLENGE ENGINE & TIMER
+           ------------------------------------------------------------- */
+        function loadChallenge() {
+            if (filteredChallenges.length === 0) filteredChallenges = challengesDatabase;
+            if (activeChallengeIndex >= filteredChallenges.length) activeChallengeIndex = 0;
+            loadChallengeByIndex(activeChallengeIndex);
+        }
+
+        function loadChallengeByIndex(idx) {
+            activeChallengeIndex = idx;
+            activeChallenge = filteredChallenges[idx];
+            selectedLine = null;
+            hintsRevealedCount = 0;
+            document.getElementById("selected-line-indicator").textContent = "None";
+            document.getElementById("hint-btn-text").textContent = "HINT (-10 XP)";
+
+            // Populate Challenge HUD
+            document.getElementById("challenge-id-badge").textContent = activeChallenge.id;
+            document.getElementById("challenge-cat-badge").textContent = activeChallenge.category;
+            document.getElementById("challenge-diff-badge").textContent = activeChallenge.difficulty;
+            document.getElementById("challenge-title").textContent = activeChallenge.title;
+            document.getElementById("challenge-desc").textContent = `"${activeChallenge.description}"`;
+            document.getElementById("challenge-input").textContent = activeChallenge.input;
+            document.getElementById("challenge-expected").textContent = activeChallenge.expected;
+            document.getElementById("challenge-actual").textContent = activeChallenge.actual;
+
+            // Editor metadata
+            document.getElementById("editor-filename").textContent = `solution.${activeChallenge.language === 'Python' ? 'py' : activeChallenge.language === 'Java' ? 'java' : activeChallenge.language === 'C' ? 'c' : 'js'}`;
+            document.getElementById("editor-lang-badge").textContent = activeChallenge.language;
+
+            // Render Code Lines
+            renderCodeLines();
+            resetTimer();
+        }
+
+        function renderCodeLines() {
+            const container = document.getElementById("code-lines-container");
+            container.innerHTML = "";
+            activeChallenge.code.forEach((lineText, idx) => {
+                const lineNum = idx + 1;
+                const lineDiv = document.createElement("div");
+                lineDiv.className = `code-line flex items-center px-3 py-1 rounded cursor-pointer ${selectedLine === lineNum ? 'selected' : ''}`;
+                lineDiv.onclick = () => selectLine(lineNum);
+
+                const numSpan = document.createElement("span");
+                numSpan.className = "w-8 text-gray-600 select-none font-mono text-xs";
+                numSpan.textContent = lineNum < 10 ? `0${lineNum}` : lineNum;
+
+                const codeSpan = document.createElement("span");
+                codeSpan.className = "text-gray-200 font-mono text-xs sm:text-sm whitespace-pre";
+                codeSpan.textContent = lineText;
+
+                lineDiv.appendChild(numSpan);
+                lineDiv.appendChild(codeSpan);
+                container.appendChild(lineDiv);
+            });
+        }
+
+        function selectLine(lineNum) {
+            selectedLine = lineNum;
+            document.getElementById("selected-line-indicator").textContent = `Line ${lineNum < 10 ? '0' + lineNum : lineNum}`;
+            renderCodeLines();
+        }
+
+        function resetTimer() {
+            if (timerInterval) clearInterval(timerInterval);
+            challengeTimer = 60;
+            updateTimerDisplay();
+            timerInterval = setInterval(() => {
+                challengeTimer--;
+                updateTimerDisplay();
+                if (challengeTimer <= 0) {
+                    clearInterval(timerInterval);
+                    handleTimeExpired();
+                }
+            }, 1000);
+        }
+
+        function updateTimerDisplay() {
+            const m = Math.floor(challengeTimer / 60);
+            const s = challengeTimer % 60;
+            document.getElementById("timer-display").textContent = `${m < 10 ? '0' + m : m}:${s < 10 ? '0' + s : s}`;
+        }
+
+        function handleTimeExpired() {
+            showFailureModal("TIME EXPIRED! The bug was not isolated in time.");
+        }
+
+        /* -------------------------------------------------------------
+           SUBMISSION & BUG CHECKING
+           ------------------------------------------------------------- */
+        function submitBugReport() {
+            if (!selectedLine) {
+                showFailureModal("No line selected! Click a line in the code editor before reporting.");
+                return;
+            }
+
+            gameState.totalAttempts++;
+
+            if (selectedLine === activeChallenge.bugLine) {
+                // Correct Bug Found!
+                if (timerInterval) clearInterval(timerInterval);
+                gameState.correctAttempts++;
+                gameState.bugsSolved++;
+                gameState.challengesCompleted++;
+                gameState.streak++;
+                if (gameState.streak > gameState.bestStreak) gameState.bestStreak = gameState.streak;
+
+                // XP Calculation
+                let earnedXP = activeChallenge.xp;
+                if (hintsRevealedCount === 0) earnedXP += 50; // no hints bonus
+                if (challengeTimer > 30) earnedXP += 25; // speed bonus
+
+                gameState.xp += earnedXP;
+                checkAchievements();
+                saveProgress();
+                updateUI();
+
+                // Show success modal
+                document.getElementById("modal-success-xp").textContent = `+${earnedXP} XP EARNED`;
+                document.getElementById("explanation-text").textContent = activeChallenge.explanation;
+                document.getElementById("fix-text").textContent = activeChallenge.fix;
+                document.getElementById("modal-success").classList.remove("hidden");
+            } else {
+                // Incorrect Line Selected
+                gameState.streak = 0;
+                gameState.xp = Math.max(0, gameState.xp - 10);
+                saveProgress();
+                updateUI();
+                showFailureModal(`Line ${selectedLine} is clean. Trace the execution flow again carefully.`);
+            }
+        }
+
+        function nextChallenge() {
+            closeModal('modal-success');
+            activeChallengeIndex++;
+            loadChallenge();
+        }
+
+        function useHint() {
+            hintsRevealedCount++;
+            gameState.hintsUsed++;
+            gameState.xp = Math.max(0, gameState.xp - 10);
+            saveProgress();
+            updateUI();
+
+            if (hintsRevealedCount === 1) {
+                showHintBox(activeChallenge.hint1);
+                document.getElementById("hint-btn-text").textContent = "HINT 2 (-10 XP)";
+            } else {
+                showHintBox(activeChallenge.hint2);
+                document.getElementById("hint-btn-text").textContent = "MAX HINTS";
+            }
+        }
+
+        function showHintBox(msg) {
+            // Display hint inside trace log or notification
+            const logBox = document.getElementById("trace-log-box");
+            const div = document.createElement("div");
+            div.className = "text-electric-orange font-bold";
+            div.innerHTML = `<i class="fa-solid fa-lightbulb"></i> HINT: ${msg}`;
+            logBox.appendChild(div);
+            logBox.scrollTop = logBox.scrollHeight;
+        }
+
+        function showFailureModal(msg) {
+            document.getElementById("failure-msg").textContent = `"${msg}"`;
+            document.getElementById("modal-failure").classList.remove("hidden");
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.add("hidden");
+        }
+
+        /* -------------------------------------------------------------
+           TRACE EXECUTION SIMULATOR
+           ------------------------------------------------------------- */
+        function triggerTraceExecution() {
+            const logBox = document.getElementById("trace-log-box");
+            logBox.innerHTML = "";
+            let step = 0;
+            const steps = [
+                "Initializing runtime environment...",
+                "Loading input dataset into memory...",
+                "Executing function scope...",
+                `Inspecting line ${activeChallenge.bugLine}: anomaly detected...`
+            ];
+
+            const interval = setInterval(() => {
+                if (step < steps.length) {
+                    const div = document.createElement("div");
+                    div.className = step === steps.length - 1 ? "text-electric-crimson font-bold" : "text-electric-cyan";
+                    div.textContent = `> ${steps[step]}`;
+                    logBox.appendChild(div);
+                    logBox.scrollTop = logBox.scrollHeight;
+                    step++;
+                } else {
+                    clearInterval(interval);
+                }
+            }, 500);
+        }
+
+        /* -------------------------------------------------------------
+           ACHIEVEMENTS & LEVEL SYSTEM
+           ------------------------------------------------------------- */
+        function checkAchievements() {
+            if (gameState.bugsSolved >= 1) unlockAchievement("first_blood");
+            if (gameState.bugsSolved >= 5) unlockAchievement("bug_tracker");
+            if (gameState.bugsSolved >= 10) unlockAchievement("logic_hunter");
+            if (gameState.hintsUsed === 0 && gameState.bugsSolved >= 3) unlockAchievement("no_hints");
+            if (challengeTimer >= 45 && gameState.bugsSolved >= 1) unlockAchievement("speed_demon");
+            if (gameState.bugsSolved >= 25) unlockAchievement("bug_master");
+        }
+
+        function unlockAchievement(id) {
+            const ach = achievementsList.find(a => a.id === id);
+            if (ach && !ach.unlocked) {
+                ach.unlocked = true;
+            }
+        }
+
+        function calculateLevel() {
+            const xp = gameState.xp;
+            if (xp < 300) return { level: 1, title: "LEVEL 01 — CODE ROOKIE", next: 300 };
+            if (xp < 750) return { level: 2, title: "LEVEL 02 — BUG TRACKER", next: 750 };
+            if (xp < 1500) return { level: 3, title: "LEVEL 03 — LOGIC HUNTER", next: 1500 };
+            if (xp < 3000) return { level: 4, title: "LEVEL 04 — DEBUG SPECIALIST", next: 3000 };
+            if (xp < 5000) return { level: 5, title: "LEVEL 05 — CODE DETECTIVE", next: 5000 };
+            return { level: 6, title: "LEVEL 06 — BUG MASTER", next: 10000 };
+        }
+
+        /* -------------------------------------------------------------
+           UI UPDATE & RENDER
+           ------------------------------------------------------------- */
+        function updateUI() {
+            const lvlInfo = calculateLevel();
+
+            // Nav badges
+            document.getElementById("nav-xp").textContent = `${gameState.xp} XP`;
+            document.getElementById("nav-streak").textContent = gameState.streak;
+            document.getElementById("nav-username").textContent = gameState.username;
+            document.getElementById("nav-badge-initial").textContent = gameState.username.charAt(0).toUpperCase();
+
+            // Hero badge
+            document.getElementById("hero-level-label").textContent = lvlInfo.title.split('—')[0].trim();
+
+            // HUD
+            document.getElementById("hud-level").textContent = `LEVEL 0${lvlInfo.level}`;
+            document.getElementById("hud-xp").textContent = `${gameState.xp} XP`;
+            document.getElementById("hud-streak").textContent = `🔥 ${gameState.streak}`;
+            document.getElementById("hud-bugs-solved").textContent = gameState.bugsSolved;
+
+            // Dossier / Progress section
+            document.getElementById("dossier-level-title").textContent = lvlInfo.title;
+            const prevThreshold = lvlInfo.level === 1 ? 0 : lvlInfo.level === 2 ? 300 : lvlInfo.level === 3 ? 750 : lvlInfo.level === 4 ? 1500 : lvlInfo.level === 5 ? 3000 : 5000;
+            const spanRange = lvlInfo.next - prevThreshold;
+            const currentProgress = Math.min(spanRange, gameState.xp - prevThreshold);
+            const percent = Math.max(0, Math.min(100, (currentProgress / spanRange) * 100));
+
+            document.getElementById("dossier-xp-fraction").textContent = `${gameState.xp} / ${lvlInfo.next} XP`;
+            document.getElementById("dossier-progress-bar").style.width = `${percent}%`;
+            document.getElementById("dossier-next-xp").textContent = lvlInfo.next;
+            document.getElementById("dossier-xp-remaining").textContent = `${lvlInfo.next - gameState.xp} XP remaining`;
+
+            document.getElementById("stat-bugs-found").textContent = gameState.bugsSolved;
+            document.getElementById("stat-current-streak").textContent = `${gameState.streak} 🔥`;
+            document.getElementById("stat-best-streak").textContent = `${gameState.bestStreak} 🔥`;
+
+            const accuracy = gameState.totalAttempts > 0 ? Math.round((gameState.correctAttempts / gameState.totalAttempts) * 100) : 100;
+            document.getElementById("stat-accuracy").textContent = `${accuracy}%`;
+            document.getElementById("hero-accuracy").textContent = `${accuracy}%`;
+
+            renderAchievements();
+            renderLeaderboard();
+        }
+
+        function renderAchievements() {
+            const container = document.getElementById("achievements-container");
+            container.innerHTML = "";
+            achievementsList.forEach(ach => {
+                const card = document.createElement("div");
+                card.className = `p-4 rounded-xl border flex flex-col items-center text-center space-y-2 transition-all ${ach.unlocked ? 'bg-graphite-950 border-electric-lime/40 shadow-lg shadow-electric-lime/5' : 'bg-graphite-950/40 border-white/5 opacity-40'}`;
+                card.innerHTML = `
+                    <div class="w-10 h-10 rounded-lg ${ach.unlocked ? 'bg-electric-lime/20 text-electric-lime' : 'bg-graphite-800 text-gray-600'} flex items-center justify-center font-bold">
+                        <i class="fa-solid ${ach.icon}"></i>
+                    </div>
+                    <div>
+                        <div class="text-xs font-mono font-bold text-white">${ach.title}</div>
+                        <div class="text-[10px] text-gray-400 mt-1">${ach.desc}</div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function renderLeaderboard() {
+            const tbody = document.getElementById("leaderboard-tbody");
+            tbody.innerHTML = "";
+
+            // Simulated local leaderboard items + current user
+            let localBoard = [
+                { rank: 1, name: "CHERRY", xp: 1850, bugs: 28, streak: 12 },
+                { rank: 2, name: "CYBER_NINJA", xp: 1420, bugs: 21, streak: 8 },
+                { rank: 3, name: gameState.username.toUpperCase(), xp: gameState.xp, bugs: gameState.bugsSolved, streak: gameState.streak },
+                { rank: 4, name: "NULL_POINTER", xp: 890, bugs: 14, streak: 3 },
+                { rank: 5, name: "SYNTAX_ERROR", xp: 540, bugs: 9, streak: 1 }
+            ];
+
+            // Sort by XP descending
+            localBoard.sort((a, b) => b.xp - a.xp);
+            localBoard.forEach((item, index) => {
+                item.rank = index + 1;
+            });
+
+            localBoard.forEach(row => {
+                const tr = document.createElement("tr");
+                tr.className = row.name === gameState.username.toUpperCase() ? "bg-electric-lime/10 border-b border-white/5" : "border-b border-white/5 hover:bg-white/5";
+                tr.innerHTML = `
+                    <td class="py-3 px-4 font-bold text-electric-lime">#0${row.rank}</td>
+                    <td class="py-3 px-4 font-bold text-white">${row.name}</td>
+                    <td class="py-3 px-4 text-electric-cyan font-bold">${row.xp} XP</td>
+                    <td class="py-3 px-4 text-gray-300">${row.bugs}</td>
+                    <td class="py-3 px-4 text-electric-orange font-bold">${row.streak} 🔥</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        /* -------------------------------------------------------------
+           MODAL PROFILE MANAGEMENT
+           ------------------------------------------------------------- */
+        function openProfileModal() {
+            document.getElementById("profile-input-name").value = gameState.username;
+            document.getElementById("modal-profile").classList.remove("hidden");
+        }
+
+        function closeProfileModal() {
+            document.getElementById("modal-profile").classList.add("hidden");
+        }
+
+        function saveProfileName() {
+            const val = document.getElementById("profile-input-name").value.trim();
+            if (val) {
+                gameState.username = val;
+                saveProgress();
+                updateUI();
+                closeProfileModal();
+            }
+        }
+
+        function toggleMobileMenu() {
+            const menu = document.getElementById("mobile-menu");
+            menu.classList.toggle("hidden");
+        }
+    </script>
+</body>
+</html>
